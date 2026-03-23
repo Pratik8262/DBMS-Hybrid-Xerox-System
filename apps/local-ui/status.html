@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintEasy — Job Status</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .job-card {
+            border: 1px solid var(--border); border-radius: 16px;
+            padding: 20px; margin-bottom: 16px; background: #fff;
+        }
+        .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .job-id { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+        .badge {
+            padding: 4px 12px; border-radius: 999px; font-size: 0.75rem;
+            font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase;
+        }
+        .badge-queued    { background: #FEF3C7; color: #92400E; }
+        .badge-printing  { background: #DBEAFE; color: #1E40AF; }
+        .badge-done      { background: #D1FAE5; color: #065F46; }
+        .badge-failed    { background: #FEE2E2; color: #991B1B; }
+        .badge-cancelled { background: #F3F4F6; color: #6B7280; }
+        .job-details { font-size: 0.85rem; color: var(--text-muted); }
+        .job-details span { display: inline-block; margin-right: 16px; }
+        .job-cost { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-top: 8px; }
+        .progress-bar { height: 6px; background: #E5E7EB; border-radius: 3px; margin-top: 12px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #4F46E5, #818CF8); border-radius: 3px; transition: width 0.5s; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+        .refresh-btn {
+            background: none; border: 1px solid var(--primary); color: var(--primary);
+            padding: 8px 20px; border-radius: 10px; font-size: 0.875rem;
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .refresh-btn:hover { background: var(--primary); color: #fff; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">🖨️ PrintEasy</div>
+            <div class="status-badge" id="statusBadge">Connected — Local</div>
+        </header>
+
+        <main class="main-content">
+            <div class="toolbar">
+                <div>
+                    <h1 class="title" style="font-size:1.5rem; margin-bottom:4px;">Job Status</h1>
+                    <p class="subtitle" style="margin-bottom:0;">Tracking your print jobs in real-time.</p>
+                </div>
+                <button class="refresh-btn" id="refreshBtn" onclick="loadJobs()">↻ Refresh</button>
+            </div>
+
+            <div id="jobsContainer">
+                <div class="empty-state">
+                    <div class="icon">⏳</div>
+                    <p>Loading your jobs...</p>
+                </div>
+            </div>
+
+            <p style="text-align:center; margin-top:24px; font-size:0.85rem;">
+                <a href="upload.html" style="color:var(--primary); font-weight:600; text-decoration:none;">← Upload another file</a>
+            </p>
+        </main>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            const value = `; ${document.cookie}`
+            const parts = value.split(`; ${name}=`)
+            if (parts.length === 2) return parts.pop().split(';').shift()
+            return null
+        }
+
+        function getBadgeClass(status) {
+            return `badge badge-${status}` 
+        }
+
+        function getStatusLabel(status) {
+            const map = {
+                queued:    '📋 Queued',
+                printing:  '🖨️ Printing',
+                done:      '✅ Ready for Pickup!',
+                failed:    '❌ Failed',
+                cancelled: '🚫 Cancelled'
+            }
+            return map[status] || status
+        }
+
+        function getProgress(status) {
+            const map = { queued: 20, printing: 65, done: 100, failed: 100, cancelled: 100 }
+            return map[status] || 0
+        }
+
+        function renderJobs(jobs) {
+            const container = document.getElementById('jobsContainer')
+            if (!jobs || jobs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <p style="font-weight:600; font-size:1rem; margin-bottom:8px;">No jobs found</p>
+                        <p style="font-size:0.85rem;">Upload a file to get started.</p>
+                    </div>`
+                return
+            }
+
+            container.innerHTML = jobs.map(job => `
+                <div class="job-card">
+                    <div class="job-header">
+                        <span class="job-id">Job #${job.job_id}</span>
+                        <span class="${getBadgeClass(job.status)}">${getStatusLabel(job.status)}</span>
+                    </div>
+                    <div class="job-details">
+                        <span>📄 ${job.file_name || 'File'}</span>
+                        <span>🕐 ${new Date(job.created_at).toLocaleTimeString()}</span>
+                    </div>
+                    ${job.cost ? `<div class="job-cost">₹${parseFloat(job.cost).toFixed(2)}</div>` : ''}
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width:${getProgress(job.status)}%"></div>
+                    </div>
+                    ${job.status === 'done' ? `
+                        <p style="margin-top:12px; font-size:0.85rem; font-weight:600; color:#065F46; background:#D1FAE5; padding:10px 14px; border-radius:10px;">
+                            🎉 Your print is ready! Please collect it from the counter.
+                        </p>` : ''}
+                </div>`).join('')
+        }
+
+        async function loadJobs() {
+            const sessionId = getCookie('sessionId')
+            const jobIdParam = new URLSearchParams(window.location.search).get('job_id')
+            const container  = document.getElementById('jobsContainer')
+
+            if (!sessionId) {
+                container.innerHTML = `<div class="empty-state"><div class="icon">🔒</div><p>Session expired. Please scan the QR code again.</p></div>`
+                return
+            }
+
+            try {
+                const url = jobIdParam
+                    ? `/api/jobs/${jobIdParam}`
+                    : `/api/jobs/session/${sessionId}`
+                const res  = await fetch(url, { headers: { 'x-session-id': sessionId } })
+                const data = await res.json()
+
+                const jobs = jobIdParam
+                    ? (data.data ? [data.data] : [])
+                    : (data.data || [])
+
+                renderJobs(jobs)
+
+                // Auto-refresh every 10s if any job is not done/failed/cancelled
+                const hasPending = jobs.some(j => ['queued','printing'].includes(j.status))
+                if (hasPending) {
+                    setTimeout(loadJobs, 10000)
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Could not load jobs. <button class="refresh-btn" onclick="loadJobs()">Retry</button></p></div>`
+            }
+        }
+
+        // Load on page start
+        loadJobs()
+    </script>
+</body>
+</html>

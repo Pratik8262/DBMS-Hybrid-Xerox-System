@@ -1,0 +1,68 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+.pnp
+.pnp.js
+
+# ========================
+# Environment Variables (SECRET — never commit!)
+# ========================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# ========================
+# SQLite Database (local runtime data)
+# ========================
+*.db
+*.db-shm
+*.db-wal
+server/printeasy.db
+
+# ========================
+# Uploaded / Temp Files (runtime data)
+# ========================
+data/
+server/uploads/
+server/tmp/
+server/logs/
+
+# ========================
+# Build Output
+# ========================
+dist/
+build/
+.next/
+out/
+
+# ========================
+# OS & Editor Junk
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.pid
+
+# ========================
+# IDE Config
+# ========================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ========================
+# Misc
+# ========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+.parcel-cache/

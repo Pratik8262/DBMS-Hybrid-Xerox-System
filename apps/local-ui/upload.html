@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintEasy — Upload Files</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+        .settings-grid label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px; }
+        .settings-grid select {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 10px; font-size: 0.9rem; background: #fff; color: var(--text-main);
+        }
+        .cost-preview {
+            background: #EEF2FF; border-radius: 12px; padding: 16px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px; font-weight: 600;
+        }
+        .cost-preview .amount { font-size: 1.5rem; color: var(--primary); font-weight: 700; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">🖨️ PrintEasy</div>
+            <div class="status-badge" id="statusBadge">Connected — Local</div>
+        </header>
+
+        <main class="main-content">
+            <h1 class="title">Upload & Print</h1>
+            <p class="subtitle">Select your files and print settings. Files are sent directly to the shop printer.</p>
+
+            <!-- File Drop Zone -->
+            <div class="upload-area" id="dropZone">
+                <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt">
+                <div class="upload-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <h3>Tap or Drag files here</h3>
+                <p>PDF, DOCX, JPG, PNG — Max 50MB per file</p>
+            </div>
+
+            <div class="files-list" id="filesList"></div>
+
+            <!-- Print Settings -->
+            <div id="printSettingsSection" style="display:none;">
+                <h3 style="font-size:1rem; font-weight:700; margin-bottom:16px; color:var(--text-main);">⚙️ Print Settings</h3>
+                <div class="settings-grid">
+                    <div>
+                        <label for="colorMode">Color Mode</label>
+                        <select id="colorMode">
+                            <option value="bw">Black &amp; White</option>
+                            <option value="color">Color</option>
+                            <option value="grayscale">Grayscale</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="paperSize">Paper Size</label>
+                        <select id="paperSize">
+                            <option value="A4">A4</option>
+                            <option value="A3">A3</option>
+                            <option value="Letter">Letter</option>
+                            <option value="Legal">Legal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="sides">Sides</label>
+                        <select id="sides">
+                            <option value="simplex">Single-sided</option>
+                            <option value="duplex_long">Double-sided (Long)</option>
+                            <option value="duplex_short">Double-sided (Short)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="copies">Copies</label>
+                        <select id="copies">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="cost-preview">
+                    <span>Estimated Cost</span>
+                    <span class="amount" id="costPreview">₹ —</span>
+                </div>
+            </div>
+
+            <button class="primary-btn" id="uploadBtn" disabled>Upload &amp; Queue for Print</button>
+
+            <p style="text-align:center; margin-top:16px; font-size:0.8rem; color:var(--text-muted);">
+                <a href="status.html" style="color:var(--primary); text-decoration:none; font-weight:600;">📋 Track your job status →</a>
+            </p>
+        </main>
+    </div>
+
+    <script>
+        const dropZone    = document.getElementById('dropZone')
+        const fileInput   = document.getElementById('fileInput')
+        const filesList   = document.getElementById('filesList')
+        const uploadBtn   = document.getElementById('uploadBtn')
+        const statusBadge = document.getElementById('statusBadge')
+        const settingsDiv = document.getElementById('printSettingsSection')
+        const costPreview = document.getElementById('costPreview')
+
+        let selectedFiles = []
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`
+            const parts = value.split(`; ${name}=`)
+            if (parts.length === 2) return parts.pop().split(';').shift()
+            return null
+        }
+
+        // Drag & drop
+        ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+            dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation() })
+        })
+        ;['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('dragover')))
+        ;['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('dragover')))
+        dropZone.addEventListener('drop', e => addFiles(e.dataTransfer.files))
+        dropZone.addEventListener('click', () => fileInput.click())
+        fileInput.addEventListener('change', e => addFiles(e.target.files))
+
+        function addFiles(files) {
+            for (const file of files) {
+                if (file.size > 50 * 1024 * 1024) { alert(`"${file.name}" exceeds 50MB limit.`); continue }
+                selectedFiles.push({ id: Math.random().toString(36).substr(2,9), file })
+            }
+            renderFiles()
+        }
+
+        function removeFile(id) {
+            selectedFiles = selectedFiles.filter(f => f.id !== id)
+            renderFiles()
+        }
+
+        function renderFiles() {
+            filesList.innerHTML = ''
+            selectedFiles.forEach(({ id, file }) => {
+                const sizeMB = (file.size / (1024*1024)).toFixed(2)
+                const el = document.createElement('div')
+                el.className = 'file-item'
+                el.innerHTML = `
+                    <div class="file-info">
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <span class="file-size">${sizeMB} MB</span>
+                    </div>
+                    <button class="remove-btn" onclick="removeFile('${id}')">✕</button>`
+                filesList.appendChild(el)
+            })
+            uploadBtn.disabled = selectedFiles.length === 0
+            settingsDiv.style.display = selectedFiles.length > 0 ? 'block' : 'none'
+            costPreview.textContent = '₹ —'
+        }
+
+        // Estimate cost on settings change
+        ;['colorMode','paperSize','copies'].forEach(id => {
+            document.getElementById(id).addEventListener('change', estimateCost)
+        })
+
+        async function estimateCost() {
+            const sessionId = getCookie('sessionId')
+            if (!sessionId || selectedFiles.length === 0) return
+            const shopId = getCookie('shopId') || 1
+            const color_mode = document.getElementById('colorMode').value
+            const paper_size = document.getElementById('paperSize').value
+            const copies     = parseInt(document.getElementById('copies').value)
+            try {
+                const res = await fetch(`/api/pricing/${shopId}`)
+                const data = await res.json()
+                const rule = (data.data || []).find(r => r.color_type === color_mode && r.paper_size === paper_size)
+                if (rule) {
+                    const pages = selectedFiles.length * 2
+                    const base = parseFloat(rule.price_per_page) * pages * copies
+                    const total = (base * 1.18).toFixed(2)
+                    costPreview.textContent = `₹ ${total}`
+                }
+            } catch (_) { }
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFiles.length) return
+            const sessionId = getCookie('sessionId')
+            if (!sessionId) { alert('Session expired. Please scan the QR code again.'); return }
+
+            uploadBtn.disabled = true
+            uploadBtn.textContent = 'Uploading...'
+            statusBadge.textContent = 'Uploading...'
+            statusBadge.style.color = '#F59E0B'
+
+            try {
+                const formData = new FormData()
+                selectedFiles.forEach(({ file }) => formData.append('files', file))
+                formData.append('sessionId', sessionId)
+                formData.append('color_mode', document.getElementById('colorMode').value)
+                formData.append('paper_size', document.getElementById('paperSize').value)
+                formData.append('sides',      document.getElementById('sides').value)
+                formData.append('copies',     document.getElementById('copies').value)
+
+                const res    = await fetch('/api/files/upload', { method: 'POST', body: formData })
+                const result = await res.json()
+
+                if (res.ok) {
+                    statusBadge.textContent = '✅ Queued!'
+                    statusBadge.style.color = 'var(--success)'
+                    const jobId = result.data?.job_id
+                    setTimeout(() => {
+                        window.location.href = `status.html${jobId ? '?job_id=' + jobId : ''}`
+                    }, 800)
+                } else {
+                    throw new Error(result.error?.message || 'Upload failed')
+                }
+            } catch (err) {
+                alert(`Upload failed: ${err.message}`)
+                uploadBtn.disabled    = false
+                uploadBtn.textContent = 'Retry Upload'
+                statusBadge.textContent = 'Error'
+                statusBadge.style.color = '#EF4444'
+            }
+        })
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintEasy - Local Printing</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">🖨️ PrintEasy</div>
+            <div class="status-badge" id="statusBadge">Connected Local</div>
+        </header>
+
+        <main class="main-content">
+            <h1 class="title">Print your files</h1>
+            <p class="subtitle">Upload your documents directly to the shop's local printer queue. We support PDF, Images, and Docs.</p>
+
+            <div class="upload-area" id="dropZone">
+                <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">
+                <div class="upload-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                </div>
+                <h3>Tap or Drag files here</h3>
+                <p>Max file size: 50MB</p>
+            </div>
+
+            <div class="files-list" id="filesList">
+                <!-- Uploaded files will appear here -->
+            </div>
+
+            <button class="primary-btn" id="uploadBtn" disabled>
+                Upload & Queue
+            </button>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
