@@ -38,7 +38,7 @@ const generate = async (req, res, next) => {
     
     // Explicitly using the Vite Frontend IP and Port provided by the user
     // This allows the mobile phone to access the React interface directly.
-    const baseUrl = 'http://10.90.1.48:5173'
+    const baseUrl = 'http://10.103.217.159:5173'
     const apiPort = process.env.PORT || 3000
     const url = `${baseUrl}/?token=${tokenRecord.token}&api_port=${apiPort}`
 

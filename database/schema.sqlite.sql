@@ -200,12 +200,21 @@ CREATE TABLE IF NOT EXISTS print_jobs (
     error_code      TEXT,
     printed_at      TEXT,
     created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (file_id)     REFERENCES files(file_id)           ON DELETE RESTRICT,
     FOREIGN KEY (printer_id)  REFERENCES printers(printer_id)     ON DELETE RESTRICT,
     FOREIGN KEY (settings_id) REFERENCES print_settings(settings_id),
     FOREIGN KEY (session_id)  REFERENCES sessions(session_id)     ON DELETE RESTRICT,
     FOREIGN KEY (shop_id)     REFERENCES shops(shop_id)           ON DELETE RESTRICT
 );
+
+-- Auto-update updated_at whenever a print_job row is modified
+CREATE TRIGGER IF NOT EXISTS trg_print_jobs_updated_at
+AFTER UPDATE ON print_jobs
+FOR EACH ROW
+BEGIN
+    UPDATE print_jobs SET updated_at = datetime('now') WHERE job_id = OLD.job_id;
+END;
 
 -- ============================================================
 -- TABLE 12: print_job_pricing  [M:N junction]

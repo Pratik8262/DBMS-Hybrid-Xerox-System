@@ -5,6 +5,36 @@
 
 const db = require('../index')
 
+/**
+ * Computes queue_position for Supabase results in JS.
+ * Only jobs with status 'queued' or 'printing' get a position.
+ * Jobs are sorted by priority ASC, created_at ASC within each shop.
+ */
+function _assignQueuePositions(jobs) {
+  if (!jobs || jobs.length === 0) return jobs
+  // Build per-shop sorted list of active jobs
+  const activeByShop = {}
+  for (const job of jobs) {
+    if (!job.status || !['queued', 'printing'].includes(job.status)) continue
+    if (!activeByShop[job.shop_id]) activeByShop[job.shop_id] = []
+    activeByShop[job.shop_id].push(job)
+  }
+  // Sort each shop's active jobs by priority ASC, created_at ASC
+  for (const shopId of Object.keys(activeByShop)) {
+    activeByShop[shopId].sort((a, b) =>
+      a.priority !== b.priority
+        ? a.priority - b.priority
+        : new Date(a.created_at) - new Date(b.created_at)
+    )
+  }
+  // Assign positions
+  return jobs.map(job => {
+    if (!['queued', 'printing'].includes(job.status)) return { ...job, queue_position: null }
+    const pos = (activeByShop[job.shop_id] || []).findIndex(j => j.job_id === job.job_id)
+    return { ...job, queue_position: pos === -1 ? null : pos + 1 }
+  })
+}
+
 const PrintJobQueries = {
 
   findById: async (jobId) => {
@@ -31,10 +61,20 @@ const PrintJobQueries = {
    */
   findByShop: async (shopId, { status, limit = 20, offset = 0 } = {}) => {
     if (db._mode === 'sqlite') {
-      const statusClause = status ? 'AND status = ?' : ''
+      const statusClause = status ? 'AND pj.status = ?' : ''
       const params = status ? [shopId, status, limit, offset] : [shopId, limit, offset]
       return db.prepare(`
-        SELECT pj.*, f.name AS file_name, f.pages, ps.color_mode, ps.paper_size, ps.copies
+        SELECT pj.*, f.name AS file_name, f.pages, ps.color_mode, ps.paper_size, ps.copies,
+          CASE WHEN pj.status IN ('queued', 'printing')
+            THEN (
+              SELECT COUNT(*) + 1
+              FROM print_jobs pj2
+              WHERE pj2.shop_id = pj.shop_id
+                AND pj2.status IN ('queued', 'printing')
+                AND (pj2.priority < pj.priority OR (pj2.priority = pj.priority AND pj2.created_at < pj.created_at))
+            )
+            ELSE NULL
+          END AS queue_position
         FROM print_jobs pj
         JOIN files f ON f.file_id = pj.file_id
         JOIN print_settings ps ON ps.settings_id = pj.settings_id
@@ -43,6 +83,7 @@ const PrintJobQueries = {
         LIMIT ? OFFSET ?
       `).all(...params)
     }
+    // Supabase: fetch then compute queue_position in JS
     let query = db
       .from('print_jobs')
       .select(`*, files(name, pages), print_settings(color_mode, paper_size, copies)`)
@@ -52,7 +93,7 @@ const PrintJobQueries = {
     if (status) query = query.eq('status', status)
     const { data, error } = await query
     if (error) throw error
-    return data
+    return _assignQueuePositions(data)
   },
 
   /**
@@ -61,7 +102,17 @@ const PrintJobQueries = {
   findBySession: async (sessionId) => {
     if (db._mode === 'sqlite') {
       return db.prepare(`
-        SELECT pj.*, f.name AS file_name, f.pages
+        SELECT pj.*, f.name AS file_name, f.pages,
+          CASE WHEN pj.status IN ('queued', 'printing')
+            THEN (
+              SELECT COUNT(*) + 1
+              FROM print_jobs pj2
+              WHERE pj2.shop_id = pj.shop_id
+                AND pj2.status IN ('queued', 'printing')
+                AND (pj2.priority < pj.priority OR (pj2.priority = pj.priority AND pj2.created_at < pj.created_at))
+            )
+            ELSE NULL
+          END AS queue_position
         FROM print_jobs pj
         JOIN files f ON f.file_id = pj.file_id
         WHERE pj.session_id = ?
@@ -74,7 +125,7 @@ const PrintJobQueries = {
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    return data
+    return _assignQueuePositions(data)
   },
 
   /**
@@ -83,7 +134,17 @@ const PrintJobQueries = {
   findByUser: async (userId) => {
     if (db._mode === 'sqlite') {
       return db.prepare(`
-        SELECT pj.*, f.name AS file_name, f.pages, s.shop_name 
+        SELECT pj.*, f.name AS file_name, f.pages, s.shop_name,
+          CASE WHEN pj.status IN ('queued', 'printing')
+            THEN (
+              SELECT COUNT(*) + 1
+              FROM print_jobs pj2
+              WHERE pj2.shop_id = pj.shop_id
+                AND pj2.status IN ('queued', 'printing')
+                AND (pj2.priority < pj.priority OR (pj2.priority = pj.priority AND pj2.created_at < pj.created_at))
+            )
+            ELSE NULL
+          END AS queue_position
         FROM print_jobs pj
         JOIN files f ON f.file_id = pj.file_id
         JOIN shops s ON s.shop_id = pj.shop_id
@@ -100,12 +161,13 @@ const PrintJobQueries = {
       .order('created_at', { ascending: false })
     if (error) throw error
     // Normalize: flatten nested shops object into shop_name field
-    return (data || []).map(job => ({
+    const jobs = (data || []).map(job => ({
       ...job,
       shop_name: job.shops?.shop_name ?? job.shop_name ?? null,
       file_name: job.files?.name ?? job.file_name ?? null,
       pages: job.files?.pages ?? job.pages ?? null,
     }))
+    return _assignQueuePositions(jobs)
   },
 
   /**
@@ -114,9 +176,17 @@ const PrintJobQueries = {
   findPendingByPrinter: async (printerId) => {
     if (db._mode === 'sqlite') {
       return db.prepare(`
-        SELECT * FROM print_jobs
-        WHERE printer_id = ? AND status = 'queued'
-        ORDER BY priority ASC, created_at ASC
+        SELECT pj.*,
+          (
+            SELECT COUNT(*) + 1
+            FROM print_jobs pj2
+            WHERE pj2.shop_id = pj.shop_id
+              AND pj2.status IN ('queued', 'printing')
+              AND (pj2.priority < pj.priority OR (pj2.priority = pj.priority AND pj2.created_at < pj.created_at))
+          ) AS queue_position
+        FROM print_jobs pj
+        WHERE pj.printer_id = ? AND pj.status = 'queued'
+        ORDER BY pj.priority ASC, pj.created_at ASC
       `).all(printerId)
     }
     const { data, error } = await db
@@ -127,7 +197,7 @@ const PrintJobQueries = {
       .order('priority', { ascending: true })
       .order('created_at', { ascending: true })
     if (error) throw error
-    return data
+    return _assignQueuePositions(data)
   },
 
   /**
@@ -266,10 +336,16 @@ const PrintJobQueries = {
    */
   findOldCompleted: async (hours = 24) => {
     if (db._mode === 'sqlite') {
+      // Use updated_at if it exists in the DB (added in schema v2), else fall back to created_at
+      // This prevents the bug where ALL jobs get cancelled when the column is missing
+      const hasUpdatedAt = db.prepare(
+        `SELECT COUNT(*) as c FROM pragma_table_info('print_jobs') WHERE name='updated_at'`
+      ).get()?.c > 0
+      const timeCol = hasUpdatedAt ? 'updated_at' : 'created_at'
       return db.prepare(`
         SELECT * FROM print_jobs 
         WHERE status IN ('done', 'cancelled')
-          AND updated_at <= datetime('now', '-' || ? || ' hours')
+          AND ${timeCol} <= datetime('now', '-' || ? || ' hours')
       `).all(hours)
     }
     
