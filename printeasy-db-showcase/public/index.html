@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrintEasy DB Showcase | SQLite vs MongoDB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --row-alt: #1c2128;
+      
+      --sql-accent: #58a6ff;
+      --mongo-accent: #3fb950;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 0.9rem;
+      padding: 1rem;
+    }
+
+    .header-bar {
+      margin-bottom: 2rem;
+      text-align: center;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .header-bar h1 { font-size: 1.5rem; font-weight: 700; }
+
+    /* Tabs */
+    .tabs-container {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+      transition: color 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      color: var(--text);
+      border-bottom: 2px solid var(--text);
+    }
+
+    /* Split Layout */
+    .split-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 768px) {
+      .split-layout { grid-template-columns: 1fr; }
+    }
+
+    /* Columns */
+    .column {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .col-header {
+      padding: 1rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .col-header::before {
+      content: '';
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .col-sql .col-header::before { background: var(--sql-accent); }
+    .col-mongo .col-header::before { background: var(--mongo-accent); }
+    .col-sql .col-header { color: var(--sql-accent); }
+    .col-mongo .col-header { color: var(--mongo-accent); }
+
+    .form-wrapper, .table-wrapper {
+      padding: 1.5rem;
+    }
+
+    .table-wrapper {
+      border-top: 1px solid var(--border);
+      flex-grow: 1;
+    }
+
+    /* Form Styles */
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; }
+
+    label { font-size: 0.8rem; color: var(--text-muted); }
+
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      padding: 0.5rem;
+      border-radius: 4px;
+      width: 100%;
+    }
+    input[type="checkbox"] { width: auto; }
+    
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--text);
+    }
+
+    button.btn-submit {
+      width: 100%;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      color: #000;
+      transition: opacity 0.2s;
+    }
+
+    button.btn-submit:hover { opacity: 0.85; }
+    
+    .col-sql button.btn-submit { background: var(--sql-accent); }
+    .col-mongo button.btn-submit { background: var(--mongo-accent); }
+
+    /* Tables */
+    .table-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    th, td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .col-sql th { color: var(--sql-accent); }
+    .col-mongo th { color: var(--mongo-accent); }
+
+    tr:nth-child(even) { background: var(--row-alt); }
+    tr:last-child td { border-bottom: none; }
+
+    .no-data {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    .col-sql .spinner { border-top-color: var(--sql-accent); border-right-color: var(--sql-accent); }
+    .col-mongo .spinner { border-top-color: var(--mongo-accent); border-right-color: var(--mongo-accent); }
+    
+    .spinner.active { display: inline-block; }
+
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 9999;
+    }
+
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      animation: slideIn 0.3s ease-out;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .toast.success { border-left: 4px solid var(--mongo-accent); color: var(--mongo-accent); }
+    .toast.error { border-left: 4px solid #f85149; color: #f85149; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <h1>PrintEasy DB Showcase</h1>
+    <p style="color: var(--text-muted); margin-top: 0.5rem;">Vanilla JS • SQLite vs MongoDB</p>
+  </div>
+
+  <div class="tabs-container" id="tabs">
+    <button class="tab active" data-tab="users">1. User</button>
+    <button class="tab" data-tab="shops">2. Shop</button>
+    <button class="tab" data-tab="sessions">3. Session</button>
+    <button class="tab" data-tab="print-jobs">4. Print Job</button>
+    <button class="tab" data-tab="payments">5. Payment</button>
+  </div>
+
+  <div class="split-layout">
+    
+    <!-- SQL COLUMN -->
+    <div class="column col-sql" data-db="sql">
+      <div class="col-header">SQLite</div>
+      
+      <div class="form-wrapper" id="sql-form-wrapper"></div>
+      
+      <div class="table-wrapper">
+        <div class="table-title">
+          <span>Live Data</span>
+          <div class="spinner" id="spinner-sql"></div>
+        </div>
+        <div class="table-responsive" id="table-sql"></div>
+      </div>
+    </div>
+
+    <!-- MONGO COLUMN -->
+    <div class="column col-mongo" data-db="mongo">
+      <div class="col-header">MongoDB</div>
+      
+      <div class="form-wrapper" id="mongo-form-wrapper"></div>
+      
+      <div class="table-wrapper">
+        <div class="table-title">
+          <span>Live Data</span>
+          <div class="spinner" id="spinner-mongo"></div>
+        </div>
+        <div class="table-responsive" id="table-mongo"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast-container"></div>
+
+  <!-- FORM TEMPLATES (Hidden in DOM, injected by JS) -->
+  <template id="form-users">
+    <form class="data-form" data-endpoint="users" onsubmit="handleFormSubmit(event)">
+      <div class="form-grid">
+        <div class="form-group"><label>Name</label><input type="text" name="name" required></div>
+        <div class="form-group"><label>Phone</label><input type="text" name="phone" required></div>
+        <div class="form-group full"><label>Email</label><input type="email" name="email"></div>
+      </div>
+      <button type="submit" class="btn-submit">Insert into {DB_NAME}</button>
+    </form>
+  </template>
+
+  <template id="form-shops">
+    <form class="data-form" data-endpoint="shops" onsubmit="handleFormSubmit(event)">
+      <div class="form-grid">
+        <div class="form-group"><label>Shop Name</label><input type="text" name="shop_name" required></div>
+        <div class="form-group"><label>Contact</label><input type="text" name="contact" required></div>
+        <div class="form-group full"><label>Email</label><input type="email" name="email"></div>
+        <div class="form-group full"><label>Address</label><input type="text" name="address" required></div>
+        <div class="form-group"><label>City</label><input type="text" name="city" required></div>
+        <div class="form-group"><label>Pincode</label><input type="text" name="pincode" required></div>
+      </div>
+      <button type="submit" class="btn-submit">Insert into {DB_NAME}</button>
+    </form>
+  </template>
+
+  <template id="form-sessions">
+    <form class="data-form" data-endpoint="sessions" onsubmit="handleFormSubmit(event)">
+      <div class="form-grid">
+        <div class="form-group"><label>User ID</label><input type="text" name="user_id" required></div>
+        <div class="form-group"><label>Shop ID</label><input type="text" name="shop_id" required></div>
+        <div class="form-group full"><label>QR Token</label><input type="text" name="qr_token" required placeholder="Leave blank to auto-generate"></div>
+        <div class="form-group checkbox full"><input type="checkbox" name="is_local" id="is_local_{DB}"><label for="is_local_{DB}">Is Local</label></div>
+      </div>
+      <button type="submit" class="btn-submit">Insert into {DB_NAME}</button>
+    </form>
+  </template>
+
+  <template id="form-print-jobs">
+    <form class="data-form" data-endpoint="print-jobs" onsubmit="handleFormSubmit(event)">
+      <div class="form-grid">
+        <div class="form-group full"><label>File ID</label><input type="text" name="file_id" required></div>
+        <div class="form-group"><label>Shop ID</label><input type="text" name="shop_id" required></div>
+        <div class="form-group"><label>Session ID</label><input type="text" name="session_id" required></div>
+        <div class="form-group"><label>Color Mode</label>
+          <select name="color_mode">
+            <option value="bw">B/W</option><option value="color">Color</option><option value="grayscale">Grayscale</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Paper Size</label>
+          <select name="paper_size">
+            <option value="A4">A4</option><option value="A3">A3</option><option value="Letter">Letter</option><option value="Legal">Legal</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Copies</label><input type="number" name="copies" value="1" min="1" required></div>
+        <div class="form-group"><label>Cost</label><input type="number" name="cost" step="0.01"></div>
+      </div>
+      <button type="submit" class="btn-submit">Insert into {DB_NAME}</button>
+    </form>
+  </template>
+
+  <template id="form-payments">
+    <form class="data-form" data-endpoint="payments" onsubmit="handleFormSubmit(event)">
+      <div class="form-grid">
+        <div class="form-group full"><label>Job ID</label><input type="text" name="job_id" required></div>
+        <div class="form-group"><label>Amount</label><input type="number" name="amount" step="0.01" required></div>
+        <div class="form-group"><label>Method</label>
+          <select name="method">
+            <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="wallet">Wallet</option>
+          </select>
+        </div>
+        <div class="form-group full"><label>Status</label>
+          <select name="status">
+            <option value="pending">Pending</option><option value="success">Success</option><option value="failed">Failed</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn-submit">Insert into {DB_NAME}</button>
+    </form>
+  </template>
+
+
+  <script>
+    const API_BASE = '/api'; // Use relative to work dynamically on 3000/3001
+    let activeTab = 'users';
+
+    // Toasts
+    function showToast(message, isSuccess = true) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${isSuccess ? 'success' : 'error'}`;
+      toast.innerHTML = isSuccess ? `<span>✓</span> ${message}` : `<span>✗</span> ${message}`;
+      
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.animation = 'slideIn 0.3s ease-out reverse forwards';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Set spinner
+    function setSpinner(db, active) {
+      const spinner = document.getElementById(`spinner-${db}`);
+      if (active) spinner.classList.add('active');
+      else spinner.classList.remove('active');
+    }
+
+    // Render Forms
+    function renderForms(tabName) {
+      ['sql', 'mongo'].forEach(db => {
+        const wrapper = document.getElementById(`${db}-form-wrapper`);
+        const template = document.getElementById(`form-${tabName}`);
+        
+        let html = template.innerHTML
+          .replace('{DB_NAME}', db === 'sql' ? 'SQLite' : 'MongoDB')
+          .replace('{DB}', db);
+        
+        wrapper.innerHTML = html;
+        
+        // Add DB identifier to the form
+        const form = wrapper.querySelector('form');
+        form.dataset.db = db;
+      });
+    }
+
+    // Build Payload based on endpoints and DB mapping
+    function buildPayload(formData, endpoint, db) {
+      const data = Object.fromEntries(formData.entries());
+      
+      // Checkboxes aren't included if unchecked, handle manually
+      const isLocal = formData.get('is_local') === 'on';
+
+      // MongoDB specific transforms
+      if (db === 'mongo') {
+        if (endpoint === 'shops') {
+          return {
+            shopName: data.shop_name,
+            email: data.email,
+            contact: data.contact,
+            address: { address: data.address, city: data.city, pincode: data.pincode }
+          };
+        }
+        if (endpoint === 'sessions') {
+          return {
+            userId: data.user_id,
+            shopId: data.shop_id,
+            qrToken: data.qr_token || undefined,
+            isLocal: isLocal
+          };
+        }
+        if (endpoint === 'print-jobs') {
+          return {
+            fileId: data.file_id,
+            shopId: data.shop_id,
+            sessionId: data.session_id,
+            settings: {
+              colorMode: data.color_mode,
+              paperSize: data.paper_size,
+              copies: parseInt(data.copies, 10)
+            },
+            cost: parseFloat(data.cost)
+          };
+        }
+        if (endpoint === 'payments') {
+          return {
+            jobId: data.job_id,
+            amount: parseFloat(data.amount),
+            method: data.method,
+            status: data.status
+          };
+        }
+      } 
+      // SQL specific transforms
+      else {
+        if (endpoint === 'shops') {
+           return {
+            shop_name: data.shop_name,
+            email: data.email,
+            contact: data.contact,
+            address: { address: data.address, city: data.city, pincode: data.pincode }
+          };
+        }
+        if (endpoint === 'sessions') {
+           return {
+             ...data,
+             is_local: isLocal ? 1 : 0
+           };
+        }
+        if (endpoint === 'print-jobs') {
+          // SQL requires printer_id and user_id usually, but controller defaults them or they are nullable.
+          return {
+             ...data,
+             copies: parseInt(data.copies, 10),
+             cost: parseFloat(data.cost),
+             printer_id: 1 // Default mock printer for SQL
+          };
+        }
+      }
+      
+      // Users map 1:1 except for formatting
+      return data;
+    }
+
+    // Handle form submissions
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const form = e.target;
+      const db = form.dataset.db;
+      const endpoint = form.dataset.endpoint;
+      const btn = form.querySelector('button');
+      
+      const formData = new FormData(form);
+      const payload = buildPayload(formData, endpoint, db);
+
+      // Clean empty strings
+      for (const key in payload) {
+        if (payload[key] === '') delete payload[key];
+      }
+
+      const originalBtnText = btn.innerText;
+      btn.innerText = 'Inserting...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/${db}/${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        const responseData = await res.json();
+        
+        if (res.ok && responseData.success) {
+          showToast(`Inserted into ${db.toUpperCase()}`, true);
+          form.reset();
+          fetchTableData(db, endpoint);
+        } else {
+          showToast(`Error: ${responseData.error || 'Unknown error'}`, false);
+        }
+      } catch (err) {
+        showToast(`Error: ${err.message}`, false);
+      } finally {
+        btn.innerText = originalBtnText;
+        btn.disabled = false;
+      }
+    }
+
+    // Fetch and render table data
+    async function fetchTableData(db, endpoint) {
+      setSpinner(db, true);
+      const tableWrapper = document.getElementById(`table-${db}`);
+      
+      // Map endpoints to columns we want to extract
+      const colMap = {
+        'users': { sql: ['user_id', 'name', 'phone', 'email'], mongo: ['_id', 'name', 'phone', 'email'] },
+        'shops': { sql: ['shop_id', 'shop_name', 'status'], mongo: ['_id', 'shopName', 'status'] },
+        'sessions': { sql: ['session_id', 'user_id', 'shop_id', 'qr_token'], mongo: ['_id', 'userId', 'shopId', 'qrToken'] },
+        'print-jobs': { sql: ['job_id', 'shop_id', 'status', 'cost'], mongo: ['_id', 'shopId', 'status', 'cost'] },
+        'payments': { sql: ['payment_id', 'job_id', 'amount', 'method', 'status'], mongo: ['_id', 'jobId', 'amount', 'method', 'status'] }
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/${db}/${endpoint}`);
+        const data = await res.json();
+        
+        if (!data.success || !data.data || data.data.length === 0) {
+          tableWrapper.innerHTML = '<div class="no-data">No records yet</div>';
+          return;
+        }
+
+        const cols = colMap[endpoint][db];
+        
+        let html = '<table><thead><tr>';
+        cols.forEach(col => html += `<th>${col}</th>`);
+        html += '</tr></thead><tbody>';
+
+        data.data.forEach(row => {
+          html += '<tr>';
+          cols.forEach(col => {
+            let val = row[col];
+            if (val === undefined || val === null) val = '-';
+            if (typeof val === 'object') val = '[Object]';
+            // Truncate long IDs
+            if (String(val).length > 20) val = String(val).substring(0, 8) + '...';
+            html += `<td>${val}</td>`;
+          });
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        tableWrapper.innerHTML = html;
+
+      } catch (err) {
+        tableWrapper.innerHTML = `<div class="no-data" style="color: #f85149">Error loading data: ${err.message}</div>`;
+      } finally {
+        setSpinner(db, false);
+      }
+    }
+
+    // Tab switching logic
+    document.getElementById('tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('.tab');
+      if (!tab) return;
+      
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      activeTab = tab.dataset.tab;
+      
+      renderForms(activeTab);
+      fetchTableData('sql', activeTab);
+      fetchTableData('mongo', activeTab);
+    });
+
+    // Initial load
+    window.onload = () => {
+      renderForms(activeTab);
+      fetchTableData('sql', activeTab);
+      fetchTableData('mongo', activeTab);
+    };
+  </script>
+</body>
+</html>
