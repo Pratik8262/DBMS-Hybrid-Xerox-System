@@ -70,7 +70,7 @@ printeasy/
 
 ```bash
 cd server
-cp .env.example .env        # fill in Supabase, Razorpay, Cloudinary keys
+cp .env.example .env         # fill in Supabase, Razorpay, Cloudinary keys
 npm install
 node server.js
 ```
