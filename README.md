@@ -182,3 +182,5 @@ QR_TOKEN_TTL_MINUTES=10
 - [`docs/API.md`](./docs/API.md) — All 15 API route groups documented
 - [`docs/SYNC.md`](./docs/SYNC.md) — Outbox sync pattern and retry logic
 - [`docs/QR_FLOW.md`](./docs/QR_FLOW.md) — Offline QR hotspot flow walkthrough
+
+
